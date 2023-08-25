@@ -1,15 +1,17 @@
-﻿using Rhino;
+﻿using Eto.Forms;
+using Rhino;
 using Rhino.Display;
 using Rhino.Geometry;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 
 namespace DisplayConduitFun
 {
-    internal class Conduit
+    internal partial class Conduit
     {
 
-        private bool enabled = false;
+        private bool enabled;
         public bool Enabled
         {
             get => enabled;
@@ -33,68 +35,94 @@ namespace DisplayConduitFun
             }
         }
 
+        public List<IAnimatedDrawable> Drawables;
+
+        DateTime LastDraw;
+        public int Frame;
+
 
         readonly BoundingBox box;
         readonly Line[] lines;
 
         internal Conduit()
         {
-            this.Enabled = true;
-            box = new BoundingBox(0, 0, 0, 2160, 10000, 2000);
-            lines = box.GetEdges();
+            Enabled = false;
+
+            var xCount = 10;
+            var yCount = 20;
+            var zCount = 30;
+
+            Drawables = new List<IAnimatedDrawable>(xCount * yCount * zCount);
+
+            var xWidth = 2000;
+            var yWidth = 10000;
+            var zWidth = 2000;
+
+            var offset = 1000;
+
+            for (int x = 0; x < xCount; x++)
+            {
+                for(int y = 0; y < yCount; y++)
+                {
+                    for(int z = 0; z < zCount; z++)
+                    {
+                        var xOrigin = x * (xWidth + offset);
+                        var yOrigin = y * (yWidth + offset);
+                        var zOrigin = z * (zWidth + offset);
+
+                        var origin = new Point3d(xOrigin, yOrigin, zOrigin);
+                        var end = new Point3d(xOrigin + xWidth, yOrigin + yWidth, zOrigin + zWidth);
+
+                        var bounds = new BoundingBox(origin, end);
+                        Drawables.Add(new AnimatedDrawableExample(bounds));
+                    }
+                }
+            }
+
+            Frame = 0;
+            LastDraw = DateTime.UtcNow;
+
             RhinoApp.Idle += RhinoApp_Idle;
         }
 
-        double i = 0;
-        DateTime LastDraw = DateTime.UtcNow;
         private void RhinoApp_Idle(object sender, EventArgs e)
         {
+            if (CheckDraw())
+                RhinoDoc.ActiveDoc.Views.Redraw();
+        }
+
+        private bool CheckDraw()
+        {
             var timeSinceLastCall = DateTime.UtcNow - LastDraw;
-            var fps = 24;
+            var fps = 5;
             var delay = TimeSpan.FromSeconds(fps / 60);
 
             if (timeSinceLastCall < delay)
-                return;
+                return false;
+
+            Frame += 1;
+
+            if (Frame >= 100)
+                Frame = 0;
 
             LastDraw = DateTime.UtcNow;
-            RhinoDoc.ActiveDoc.Views.Redraw();
-        }
-
-        bool ToggleDirection = false;
-        private void DrawLoading(DrawEventArgs e)
-        {
-            if (i >= 0.98)
-                ToggleDirection = true;
-
-            if (i <= 0.01)
-                ToggleDirection = false;
-
-            if (ToggleDirection)
-                i -= 0.01;
-            else
-                i += 0.01;
-
-            int trans = (int)(i * 255);
-            ColorStop[] stops = new ColorStop[]
-                {
-                    new ColorStop(Color.FromArgb(50, Color.DeepSkyBlue), 0),
-                    new ColorStop(Color.FromArgb(trans, Color.BlueViolet), i),
-                    new ColorStop(Color.FromArgb(50, Color.DeepSkyBlue), 1),
-                };
-
-            // e.Display.DrawGradientLines(lines, 3, stops, box.PointAt(0, 0, 0.5), box.PointAt(1, 1, 0.5), true, 1f);
-            e.Display.DrawLines(lines, Color.DeepSkyBlue, 3);
-            e.Display.DrawGradientMesh(Mesh.CreateFromBox(box, 6, 6, 6), stops, box.PointAt(0, 0, 0.5), box.PointAt(1, 1, 0.5), true, 1f);
+            return true;
         }
 
         public void CalculateBoundingBox(object sender, CalculateBoundingBoxEventArgs e)
         {
-            e.IncludeBoundingBox(box);
+            foreach (var drawable in Drawables)
+            {
+                e.IncludeBoundingBox(drawable.Bounding);
+            }
         }
 
         public void PostDrawObjects(object sender, DrawEventArgs e)
         {
-            DrawLoading(e);
+            foreach (var drawable in Drawables)
+            {
+                drawable.DrawFrame(e.Display, Frame);
+            }
         }
 
     }
