@@ -83,6 +83,7 @@ namespace DisplayConduitFun
                 };
 
             // e.Display.DrawGradientLines(lines, 3, stops, box.PointAt(0, 0, 0.5), box.PointAt(1, 1, 0.5), true, 1f);
+            e.Display.DrawLines(lines, Color.DeepSkyBlue, 3);
             e.Display.DrawGradientMesh(Mesh.CreateFromBox(box, 6, 6, 6), stops, box.PointAt(0, 0, 0.5), box.PointAt(1, 1, 0.5), true, 1f);
         }
 
